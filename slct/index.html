@@ -1,0 +1,41 @@
+<h2>SLCT - simple logfile clustering tool</h2>
+
+SLCT is a tool that was designed to find clusters in logfile(s), so that each 
+cluster corresponds to a certain line pattern that occurs frequently enough. 
+Here are some examples of the clusters that SLCT is able to detect:
+<p>
+Dec 18 * myhost.mydomain sshd[*]: log: Connection from * port *
+<br>
+Dec 18 * myhost.mydomain sshd[*]: log: Password authentication for * accepted.
+<p>
+With the help of SLCT, one can quickly build a model of logfile(s), and also 
+identify rare lines that do not fit the model (and are possibly anomalous).
+<p>
+SLCT has been tested on Linux and Solaris (compiled with gcc), 
+but is likely to compile and work on other platforms as well.
+<p>
+For more information, read the <a href=slct.html>man page</a>.
+There is also a 
+<a href=/publications/slct-ipom03-web.pdf>paper</a>
+about SLCT (published at IPOM 2003). 
+<p>
+Papers about the application of SLCT for log mining and IDS alert
+classification have been published at
+<a href=/publications/slct-loghound-noms08-web.pdf>NOMS 2008</a> and
+<a href=/publications/cnsm10-ids-web.pdf>CNSM 2010</a>.
+
+<p>
+<b>Download:</b>
+<p>
+<a href=slct-0.05.tar.gz>slct-0.05</a> (2007-09-09)
+<br>
+<a href=slct-0.04.tar.gz>slct-0.04</a> (2003-10-09)
+<br>
+<a href=slct-0.03.tar.gz>slct-0.03</a> (2003-08-25)
+<br>
+<a href=slct-0.02.tar.gz>slct-0.02</a> (2003-05-26)
+<br>
+<a href=slct-0.01.tar.gz>slct-0.01</a> (2003-04-13)
+<hr>
+<img src="/address.gif">
+

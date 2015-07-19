@@ -1,0 +1,126 @@
+Usage: ./monitord [OPTION]... CONFFILE
+
+Options:
+  --pid-file=<file>  store process ID to <file>
+                     (default is to run without creating the pid file)
+
+  --poll-interval=<int>  check the system after <int> second intervals
+                         (default is 60 seconds)
+
+  --keepalive-interval=<int>  send keepalives after <int> second intervals;
+                              if <int> is not a multiple of the value given
+                              with the --poll-interval option, it is rounded
+                              down to the nearest multiple
+                              (default is 300 seconds)
+
+  --keepalive-message=<text>  use <text> for keepalive notification text
+                              (default is "keepalive message")
+
+  --notify-program=<prog>  all notifications are sent with program <prog>
+                           (default is to write "application=%a object=%o 
+                            severity=%s text=%t" to standard output)
+
+  --severity-for-normal=<sev>  notifications for normal system conditions
+                               (e.g., keepalives) have the severity <sev> 
+                               (default is "normal")
+
+  --max-stdout=<int>  take at most <int> lines from the standard output
+                      of the monitoring script when forming a notification
+                      text (default is 10)
+
+  --program-name=<name>  use <name> for program name when logging to syslog
+                         and sending notifications 
+                         (default is ./monitord without the leading path)
+
+  --syslog=<pri>  log program internal errors with syslog priority <pri>
+                  (default is "user.err")
+
+  --daemon | --nodaemon  run as a daemon | don't run as a daemon
+                         (default is --nodaemon)
+
+  --help, -?  print the usage information
+
+  --version  print the version information
+
+Notify program (see the --notify-program option) may contain the following 
+variables which will be substituted with the real values when sending 
+the notification:
+
+%a - application that sent the notification (see the --program-name option)
+%o - object that the notification is about, e.g., 'sendmail' or '/usr'
+     (for keepalive messages, %o is set to keepalive interval)
+%s - severity of the notification, e.g., 'minor' or 'major'
+%t - notification text, e.g., 'Too few sendmail running', 
+                              'Filesystem /usr: less than 10% free', etc. 
+
+Note that before substitution all values will be put inside apostrophes,
+and all apostrophes inside the values will be masked.
+
+
+An example command line for starting monitord:
+
+/usr/bin/monitord --daemon --poll-interval=60 --severity-for-normal=notice \
+  --notify-prog='logger -i -t %a -p daemon.%s %t' /etc/monitord.conf
+
+
+Configuration file directives (fields are separated by whitespace):
+
+proc <regexp>  <min> <max>  <severity>  <resend time>
+disk <mountpoint>  <disklimit> <diskreset>  <severity>  <resend time>
+load <loadtype>  <loadlimit> <loadreset>  <severity>  <resend time>
+exec <label> <progname> <option1> ... <optionN>  <severity>  <resend time>
+
+	where <severity> = severity string (e.g., 'minor', 'major', etc.)
+              <resend time> = if set to non-zero, notifications are resent 
+                after every <resend time> seconds during the error condition.
+                If set to 0, every notification is sent only once when
+                the error condition is discovered.
+              <regexp> = regular expression for matching process command lines
+	      <disklimit> = integer followed by the optional % symbol
+	      <diskreset> = integer followed by the optional % symbol. Reset
+                value must be specified in the same units as the limit value.
+	      <loadtype> = 1, 5, 15
+	      <loadlimit> = float or integer  
+	      <loadreset> = float or integer
+	      <label> = unique string describing the nature of the script
+
+
+An example configuration file:
+
+# Issue a critical notification if there is less than 1 or more than 2 "ls -l"
+# processes in the process table. If the number of "ls -l" processes becomes 
+# 1 or 2, an "error clear" notification is issued (its severity can be set 
+# with the --severity-for-normal option).
+
+proc ls\s+-l 1 2 crit 0
+
+# Issue a critical notification if there is no sshd process running. Continue 
+# issuing critical notifications after every 30 seconds until sshd appears in
+# the process table again. When sshd is running again, issue an "error clear"
+# notification.
+
+proc sshd 1 - crit 30
+
+# Issue an error notification if there is less than 10% (10Mb) free space 
+# in /tmp. If more than 30% (40Mb) of /tmp becomes free, an "error clear" 
+# notification is issued. 
+
+disk /tmp 10% 30% err 0
+disk /tmp 10240 40960 err 0
+
+# Issue a warning notification if 15 minute load exceeds 2.0. Repeat warning
+# notifications after every 60 seconds as long as the load stays above 2.0. 
+# If 15 minute load drops below 1.0, issue an "error clear" notification.
+
+load 15 2.0 1.0 warning 60
+
+# Issue a warning notification if the disk_monitor.sh script returns non-zero. 
+# First N lines of the script's standard output (see the --max-stdout option)
+# will be concatenated and the result is used as a notification text. After 
+# the first non-zero is returned every different non-zero value returned by 
+# disk_monitor.sh is considered a different error condition and a new warning 
+# notification is produced. If the script finally returns 0, an "error clear"
+# notification is issued.
+
+exec diskmon disk_monitor.sh warning 0
+

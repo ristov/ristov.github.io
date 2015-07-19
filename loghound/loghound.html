@@ -1,0 +1,407 @@
+<HTML><HEAD><TITLE>Manpage of loghound</TITLE>
+</HEAD><BODY>
+<H1>loghound</H1>
+Section: User Commands  (1)<BR>Updated: April 2004<BR><A HREF="#index">Index</A>
+<A HREF="http://localhost/cgi-bin/man/man2html">Return to Main Contents</A><HR>
+
+<A NAME="lbAB">&nbsp;</A>
+<H2>NAME</H2>
+
+loghound - a tool for mining frequent patterns from event logs
+<A NAME="lbAC">&nbsp;</A>
+<H2>SYNOPSIS</H2>
+
+<DL COMPACT>
+<DT><B>loghound</B>
+
+<DD>
+[-b &lt;byte offset&gt;] 
+<BR>
+
+[-c] 
+<BR>
+
+[-d &lt;regexp&gt;] 
+<BR>
+
+[-f &lt;regexp&gt;]
+<BR>
+
+[-g]
+<BR>
+
+[-i &lt;seed&gt;]
+<BR>
+
+[-l &lt;max itemset size&gt;]
+<BR>
+
+[-n &lt;cache trie support&gt;]
+<BR>
+
+[-o &lt;out-of-cache file&gt;] 
+<BR>
+
+[-t &lt;template&gt;]
+<BR>
+
+[-v &lt;item vector size&gt;] 
+<BR>
+
+[-w &lt;item table size&gt;] 
+<BR>
+
+[-z &lt;transaction vector size&gt;]
+<BR>
+
+-s &lt;support&gt; &lt;input files&gt;
+</DL>
+<A NAME="lbAD">&nbsp;</A>
+<H2>DESCRIPTION</H2>
+
+LogHound is a tool that was designed for finding frequent patterns from
+event log data sets with the help of a breadth-first frequent itemset mining 
+algorithm. LogHound views each line from input file(s) as a 
+<I>transaction</I>
+
+that consists of
+<I>items</I>
+
+(each item is unique in a transaction). A set of items (or
+<I>itemset</I>)
+
+is said to be 
+<I>frequent</I>
+
+if at least N transactions contain all items from this set, where the value
+of N (or the
+<I>support threshold</I>)
+
+is given by the user with the
+<B>-s </B>
+
+option. 
+The
+<I>support</I>
+
+of an itemset is the number of transactions that contain all items from this 
+itemset.
+<P>
+
+If LogHound is started without the
+<B>-g</B>
+
+option, it assumes that input file(s) are raw event logs, and it mines 
+frequent line patterns from the file(s).
+In that case each line from input file(s) is considered a transaction with 
+word-position pairs as items. E.g., LogHound views the line
+<P>
+
+Password authentication for john accepted
+<P>
+
+as a transaction {(Password, 1), (authentication, 2), (for, 3), (john, 4),
+(accepted, 5)}. Note that each frequent itemset corresponds to a certain
+line pattern, e.g., the itemset {(Password, 1), (authentication, 2), 
+(for, 3), (accepted, 5)} represents the line pattern
+<P>
+
+Password authentication for * accepted
+<P>
+
+If LogHound is started with the
+<B>-g</B>
+
+option, it assumes that each line from input file(s) represents a set of
+events (e.g., events from a user ftp session), and it mines frequent event
+type patterns from the file(s).
+In that case each line from input file(s) is considered a transaction with 
+events as items (the order of events is not important). 
+E.g., LogHound views the line
+<P>
+
+FanFailure LinkDown LinkUp
+<P>
+
+as a transaction {FanFailure, LinkDown, LinkUp}.
+<P>
+
+In order to mine frequent itemsets (patterns), LogHound uses a breadth-first
+search strategy and keeps detected frequent itemsets in a trie data
+structure. Although the popular Apriori algorithm also works in a
+breadth-first manner and its implementations often employ the itemset trie,
+the algorithm that is built into LogHound is in several respects different
+from Apriori. The differences will be described below.
+<P>
+
+As its first step, LogHound will detect frequent items. In order to do that, 
+it makes a pass over the input data set and counts how many times each 
+item occurs. The item occurrence counters are kept in a move-to-front hash 
+table data structure (the number of slots in the table can be specified 
+with the 
+<B>-w</B>
+
+option). Unfortunately, since the number of items can be very large in
+event log data sets, this step could consume a lot of memory. If many items
+are infrequent, storing counters for them in memory is a waste of space;
+however, before the data set has been completely processed, it is impossible 
+to tell which items will finally be infrequent.
+<P>
+
+To cope with this problem, LogHound can be instructed to make an extra pass 
+over the input data set as its very first step, and build an 
+<I>item summary vector </I>
+
+of size M before the item counting (the value of M is given with the
+<B>-v</B>
+
+option). The item summary vector is made up of M counters that are 
+initialized to zero. During the pass over the data set, every item is 
+hashed to an integer value from 0 to M-1. Each time the hash value I is
+calculated for an item, the Ith counter in the vector will be incremented. 
+Since efficient hashing functions are known to distribute their input 
+values uniformly across the output range, each counter in the vector will
+correspond roughly to N / M items (where N is the total number of items). 
+The value of the Ith counter equals to the sum of occurrence times of all 
+items which hash to the value I.
+After LogHound has constructed the item summary vector, it will find the
+occurrence times of only those items for which the counter values in 
+the summary vector are equal or greater than the support threshold. 
+If many of the items in the data set are infrequent, many of the counter
+values will not exceed the support threshold, and a significant amount of
+memory will be saved during the item counting. 
+<P>
+
+After frequent items have been detected, LogHound will ignore infrequent
+items in transactions during further mining (since if an item is
+infrequent, it can't be a part of any frequent itemset).
+In order to speed up the mining process, LogHound will load a part of the
+data set into memory and store it in the cache trie. For each transaction,
+LogHound considers the set of all frequent items from that transaction. 
+Cache trie is guaranteed to contain every such set which occurs at least for 
+N transactions in the data set (the value of N is given with the
+<B>-n</B>
+
+option). Sets which are not stored to the cache trie are written to the 
+out-of-cache file (the location of this file is given with the
+<B>-o</B>
+
+option). To detect, which sets should be loaded into memory, LogHound
+uses the summary vector technique described above, and loads the set into
+memory only if corresponding counter in the 
+<I>transaction summary vector </I>
+
+is not below N (note that if we simply count the occurrence times of sets, 
+all sets would end up being in memory together with their occurrence counters).
+In that way, more frequently used transaction data are guaranteed to be in 
+main memory, while less frequently used data remain on disk.
+<P>
+
+During the mining process, LogHound detects frequent itemsets in a
+level-wise manner, building the itemset trie layer by layer. If the
+<B>-l</B>
+
+option is given, LogHound does not look for frequent itemsets that contain
+more items than specified by the option. Unlike Apriori,
+LogHound uses a heuristic for reducing the number of nodes in the trie,
+in order to reduce its memory consumption and runtime. When the mining is
+complete, LogHound derives all frequent itemsets from the nodes 
+of the itemset trie and outputs them. Since a node in the trie can represent
+several itemsets that all have the same support, LogHound outputs a concise 
+description for these itemsets, with variable items in parentheses.
+E.g., the description
+<P>
+
+(Nov) * * (myserver) * log:
+<BR>
+
+Support: 1249
+<P>
+
+represents four frequent itemsets with the support 1249:
+<P>
+
+Nov * * myserver * log:
+<BR>
+
+Nov * * * * log:
+<BR>
+
+* * * myserver * log:
+<BR>
+
+* * * * * log:
+<P>
+
+If the 
+<B>-c</B>
+
+option is given, LogHound will output closed frequent itemsets only (closed 
+itemset is an itemset that has no superset with the same support).
+<P>
+
+LogHound writes its output to standard output, and logs its messages to 
+standard error.
+<A NAME="lbAE">&nbsp;</A>
+<H2>OPTIONS</H2>
+
+<DL COMPACT>
+<DT><B>-b &lt;byte offset&gt;</B>
+
+<DD>
+when processing the input file(s), ignore the first &lt;byte offset&gt; bytes of
+every line. This option can be used to filter out the possibly irrelevant 
+information in the beginning of every line (e.g., timestamp and hostname).
+The default value for the option is zero, i.e., no bytes are ignored.
+<DT><B>-c</B>
+
+<DD>
+output closed frequent itemsets only.
+<DT><B>-d &lt;regexp&gt;</B>
+
+<DD>
+the regular expression describing the item delimiter in input file(s). 
+The default value for the option is '[ \t]+', i.e., items are separated 
+from each other by one or more space or tabulation characters.
+<DT><B>-f &lt;regexp&gt;</B>
+
+<DD>
+when processing the input file(s), ignore all lines that do not match the
+regular expression. The regular expression can contain ()-subexpressions, 
+and when
+<B>-t</B>
+
+&lt;template&gt; option has also been given, the values of those subexpressions 
+can be retrieved in &lt;template&gt; through $-variables. When
+<B>-f</B>
+
+and
+<B>-b</B>
+
+options are used together, the
+<B>-b</B>
+
+option is applied first.
+<DT><B>-g</B>
+
+<DD>
+assume that each line in input file(s) represents a set of events, and mine
+frequent event type patterns from the file(s). 
+If this option is omitted, it is assumed that input file(s) are raw event 
+log(s), and frequent line patterns will be mined from the file(s).
+<DT><B>-i &lt;seed&gt;</B>
+
+<DD>
+the value that is used to initialize the 
+<B><A HREF="http://localhost/cgi-bin/man/man2html?3+rand">rand</A></B>(3)
+
+based random number generator which is used to generate seed values for
+hashing functions inside LogHound. The default value for the option is 1.
+<DT><B>-l &lt;max itemset size&gt;</B>
+
+<DD>
+don't mine itemsets containing more than &lt;max itemset size&gt; items.
+<DT><B>-n &lt;cache trie support&gt;</B>
+
+<DD>
+create a cache trie that is guaranteed to contain transaction itemsets
+present at least &lt;cache trie support&gt; times in the data set. The default
+value for the option is zero, i.e., load the entire input data set into main
+memory.
+<DT><B>-o &lt;out-of-cache file&gt;</B>
+
+<DD>
+The location of the out-of-cache file. When this option is omitted, the
+entire input data set is loaded into main memory.
+<DT><B>-t &lt;template&gt;</B>
+
+<DD>
+template that is used to convert input lines, after they have matched the
+regular expression given with the
+<B>-f</B>
+
+option. Template is the string that will replace the original input line, 
+after the $-variables in the template have been replaced with the values
+of ()-subexpressions from the regular expression. For example, if the regular 
+expression given with the
+<B>-f</B>
+
+option is 'sshd\[[0-9]+\]: (.+)', and the template is &quot;$1&quot;, then the line
+<BR>
+
+<I>sshd[1344]: connect from 192.168.1.1 </I>
+
+<BR>
+
+will be converted to 
+<BR>
+
+<I>connect from 192.168.1.1 </I>
+
+<BR>
+
+before the line will be processed by the mining algorithm that is built 
+into LogHound. This option is meaningless without the
+<B>-f</B>
+
+option.
+<DT><B>-v &lt;item vector size&gt;</B>
+
+<DD>
+the size of the item summary vector. The default value for the option is
+zero, i.e., no summary vector will be generated.
+<DT><B>-w &lt;item table size&gt;</B>
+
+<DD>
+the number of slots in the item hash table. The default value for the
+option is 100,000.
+<DT><B>-z &lt;transaction vector size&gt;</B>
+
+<DD>
+the size of the transaction summary vector. If this option is omitted
+or zero is specified for its value, the summary vector of size
+(the number of frequent items * 100) is used. This option is meaningless
+without the
+<B>-n</B>
+
+or the
+<B>-o</B>
+
+option, or when zero is specified for the value of the
+<B>-n </B>
+
+option.
+<DT><B>-s &lt;support&gt;</B>
+
+<DD>
+the support threshold value. The value can be either an integer, or a real 
+number with a trailing %-sign.
+</DL>
+<A NAME="lbAF">&nbsp;</A>
+<H2>AUTHOR</H2>
+
+Risto Vaarandi &lt;<A HREF="mailto:risto.vaarandi@eyp.ee">risto.vaarandi@eyp.ee</A>&gt;
+<A NAME="lbAG">&nbsp;</A>
+<H2>ACKNOWLEDGMENTS</H2>
+
+This software uses the fast and efficient Shift-Add-Xor hashing algorithm
+by M. V. Ramakrishna and Justin Zobel.
+<P>
+
+<HR>
+<A NAME="index">&nbsp;</A><H2>Index</H2>
+<DL>
+<DT><A HREF="#lbAB">NAME</A><DD>
+<DT><A HREF="#lbAC">SYNOPSIS</A><DD>
+<DT><A HREF="#lbAD">DESCRIPTION</A><DD>
+<DT><A HREF="#lbAE">OPTIONS</A><DD>
+<DT><A HREF="#lbAF">AUTHOR</A><DD>
+<DT><A HREF="#lbAG">ACKNOWLEDGMENTS</A><DD>
+</DL>
+<HR>
+This document was created by
+<A HREF="http://localhost/cgi-bin/man/man2html">man2html</A>,
+using the manual pages.<BR>
+Time: 22:56:56 GMT, April 14, 2004
+</BODY>
+</HTML>

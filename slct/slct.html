@@ -1,0 +1,469 @@
+<HTML><HEAD><TITLE>Manpage of slct</TITLE>
+</HEAD><BODY>
+<H1>slct</H1>
+Section: User Commands  (1)<BR>Updated: October 2003<BR><A HREF="#index">Index</A>
+<A HREF="http://localhost/cgi-bin/man/man2html">Return to Main Contents</A><HR>
+
+<A NAME="lbAB">&nbsp;</A>
+<H2>NAME</H2>
+
+slct - simple logfile clustering tool
+<A NAME="lbAC">&nbsp;</A>
+<H2>SYNOPSIS</H2>
+
+<DL COMPACT>
+<DT><B>slct </B>
+
+<DD>
+[-b &lt;byte offset&gt;] 
+<BR>
+
+[-c &lt;clustertable size&gt;] 
+<BR>
+
+[-d &lt;regexp&gt;] 
+<BR>
+
+[-f &lt;regexp&gt;]
+<BR>
+
+[-g &lt;slice size&gt;]
+<BR>
+
+[-i &lt;seed&gt;]
+<BR>
+
+[-j]
+<BR>
+
+[-o &lt;outliers file&gt;] 
+<BR>
+
+[-r] 
+<BR>
+
+[-t &lt;template&gt;]
+<BR>
+
+[-v &lt;wordvector size&gt;] 
+<BR>
+
+[-w &lt;wordtable size&gt;] 
+<BR>
+
+[-z &lt;clustervector size&gt;]
+<BR>
+
+-s &lt;support&gt; &lt;input files&gt;
+</DL>
+<A NAME="lbAD">&nbsp;</A>
+<H2>DESCRIPTION</H2>
+
+SLCT is a tool that was designed to find clusters in logfile(s), so that
+each cluster corresponds to a certain line pattern that occurs frequently 
+enough. Here are some examples of the clusters that SLCT is able to detect:
+<P>
+
+Dec 18 * myhost.mydomain sshd[*]: log: Connection from * port *
+<BR>
+
+Dec 18 * myhost.mydomain sshd[*]: log: Password authentication for * accepted.
+<P>
+
+With the help of SLCT, one can quickly build a model of logfile(s), and also 
+identify rare lines that do not fit the model (and are possibly anomalous).
+<P>
+
+When SLCT is searching for clusters, it processes logfile(s) at the word level.
+Every cluster description that is reported by SLCT consists of constant words 
+and variable words (e.g.,
+in the above examples the words 'Dec', 'myhost.mydomain', 
+and 'log:' are constant words, while the words '*' and 'sshd[*]' are variable 
+words). A cluster contains lines that match the cluster description, and 
+the number of lines in the cluster is called the
+<I>support </I>
+
+of the cluster. Lines that do not belong to any of the clusters detected by 
+SLCT are called 
+<I>outliers</I>.
+
+<P>
+
+The task of SLCT is to identify a partitioning of logfile lines
+into clusters, so that each cluster has a support equal or greater than
+the support threshold (the value given with the
+<B>-s</B>
+
+option). In other words, if the support threshold is N, SLCT reports clusters
+that contain at least N lines. Clusters are reported by just printing their
+descriptions, without outputting the individual lines that belong to each
+detected cluster. In order to find the clusters, the following
+key observation is employed: every constant word of each cluster must be
+<I>frequent</I>,
+
+i.e., the word must occur N or more times in logfile(s).
+<P>
+
+In order to identify clusters, SLCT first makes a pass over the data,
+and finds occurrence times of all words. Every distinct word is stored to 
+in-memory vocabulary together with its occurrence counter. The word position
+is taken into account, e.g., if the word 'debug' is found to be the 1st word
+of some lines, and the 3rd word of other lines, those two occurrences are
+considered different. To minimize access times, the vocabulary is implemented
+as a move-to-front hash table.
+After the vocabulary has been built, SLCT finds frequent words
+from it (i.e., words with occurrence times equal or greater than the support 
+threshold).
+<P>
+
+When frequent words have been found, SLCT makes a second pass over the data,
+and builds cluster candidates. For every input line that contains 
+frequent word(s), a new candidate is created from these words, e.g., if the
+line is
+<P>
+
+Connection from 10.10.10.1 closed
+<P>
+
+and the words 'Connection', 'from', and 'closed' are frequent, then the 
+candidate is
+<P>
+
+Connection from * closed
+<P>
+
+If the candidate is not present 
+in the candidate hash table, it will be inserted there with the support 
+value 1; 
+if the candidate is present, its support value will be incremented. In both
+cases, the input line is assigned to the cluster candidate. After the
+second data pass SLCT processes the candidate table, in order to find 
+clusters (candidates with support values equal or greater than the support
+threshold). If the
+<B>-j</B>
+
+option was given, SLCT first checks for every cluster candidate C whether 
+the candidate table contains any of C's subclusters. A cluster C1 is 
+considered to be a subcluster of C2, if all lines that belong to C1 match 
+the description of C2, e.g., the cluster
+<P>
+
+Dec 18 * myhost.mydomain *: log: Connection from 10.10.10.1 port *
+<P>
+
+is a subcluster of the cluster
+<P>
+
+Dec 18 * myhost.mydomain *: log: Connection from * port *
+<P>
+
+If the cluster candidate C is found to have subclusters, all the lines 
+belonging to the subclusters are also assigned to C (so that every such line
+will belong to two cluster candidates simultaneously), and the support values 
+of the subclusters are added to the support value of C. After all
+candidates have been inspected, SLCT finds the clusters from the set of
+candidates by comparing the final support values with the support threshold.
+If the 
+<B>-j</B>
+
+option was not given, the step described above is omitted, which means that
+candidates (and clusters) are not allowed to intersect.
+<P>
+
+If the
+<B>-r</B>
+
+option was given, SLCT makes another pass over the data, in order to refine
+cluster descriptions. If the
+<B>-o</B>
+
+option was given together with
+<B>-r</B>,<B></B>
+
+SLCT also finds outliers (lines that do not belong to any detected cluster) 
+during the pass, and writes them to the file given with the
+<B>-o</B>
+
+option. Cluster description refinement means that variable 
+words of cluster descriptions are inspected more closely for constant 
+heads and tails, e.g., the cluster description
+<P>
+
+Dec 18 * myhost.mydomain *: log: Connection from * port *
+<P>
+
+is converted to
+<P>
+
+Dec 18 * myhost.mydomain sshd[*]: log: Connection from * port *
+<P>
+
+The algorithm described above could consume a lot of memory when applied to
+a large data set, because when building the vocabulary, every distinct word
+together with its occurrence counter has to be kept in memory. Unfortunately,
+many words present in real life logfile(s) tend to appear only a few
+times (quite often just once). Therefore, storing those very infrequent 
+words to memory is a waste of space; however, before the data set has been 
+completely processed, it is impossible to tell which words will finally be
+infrequent.
+<P>
+
+To cope with this problem, SLCT can be instructed to make an extra pass over
+the data as its very first step, and build a word summary vector of size M 
+before constructing the actual vocabulary.
+The size of the vector is given with the
+<B>-v</B>
+
+option (if the 
+<B>-v</B>
+
+option is omitted or the vector size is set to zero, no summary vector will
+be built). The word summary vector is made up of M counters that are 
+initialized to zero. During the pass over the data, every word is 
+hashed to an integer value between 0 and M-1. Each time the hash value I is
+calculated for a word, the Ith counter in the vector will be incremented. 
+Since efficient string hashing functions are known to distribute their input 
+values uniformly across the output range, each counter in the vector will
+correspond roughly to W / M words (where W is the total number of different 
+words). The value of the Ith counter equals to the sum of occurrence times 
+of all words which hash to the value I.
+<P>
+
+After SLCT has constructed the word summary vector, it will start building
+the vocabulary, but only those words are inserted into the vocabulary for 
+which the counter value in the summary vector is equal or greater than
+the support threshold. Words that do not fulfil this criteria can not be 
+frequent, since they must occur less times than specified by the support 
+threshold.
+<P>
+
+Though the employment of the summary vector involves an extra pass over the 
+data set, it is a convenient way to reduce the memory costs, because even a
+large vector consumes a relatively small amount of memory (e.g., if the
+vector has 1,000,000 counters, and the size of the counter is 4 bytes
+on your architecture, the size of the vector is still less than 4MB). If
+many of the words in the data set are infrequent, many of the counter
+values will not exceed the support threshold, and the resulting vocabulary
+will consume much less memory. If the vector size is M, and K counter values
+exceed the support threshold, then the resulting vocabulary will be about
+M / K times smaller than the original vocabulary that was built without using 
+the summary vector.
+<P>
+
+In order to determine the right size for the summary vector, one must take 
+into account the value of the support threshold, and also the estimated 
+total number of different words. If the support threshold is small, the vector
+must be larger for it to be effective, otherwise a relatively small 
+vector can be used. The more there are different words, the larger the vector
+should be. The best way to determine the right size is to run SLCT several
+times with different vector size values, and to check which value gives the
+best result in terms of total memory cost.
+<P>
+
+When SLCT is invoked with a small support threshold value, the number of
+cluster candidates can sometimes be much larger than the number of frequent
+words and the number of actual clusters. In order to lower the memory costs
+of storing the candidate hash table, the summary vector method described above
+can be applied for cluster candidates as well, i.e., before the actual
+candidates are generated, an extra pass is made over the data, and a summary
+vector is built. The size of the summary vector is given with the
+<B>-z</B>
+
+option.
+<P>
+
+SLCT writes its output to standard output, and logs its messages to standard 
+error.
+<A NAME="lbAE">&nbsp;</A>
+<H2>OPTIONS</H2>
+
+<DL COMPACT>
+<DT><B>-b &lt;byte offset&gt;</B>
+
+<DD>
+when processing the input file(s), ignore the first &lt;byte offset&gt; bytes of
+every line. This option can be used to filter out the possibly irrelevant 
+information in the beginning of every line (e.g., timestamp and hostname).
+The default value for the option is zero, i.e., no bytes are ignored.
+<DT><B>-c &lt;clustertable size&gt;</B>
+
+<DD>
+the number of slots in the cluster candidate hash table (note that this
+option does not limit the actual size of the hash table, since multiple
+elements can be connected to a single slot). The default value for the
+option is (100 * the number of frequent words).
+<DT><B>-d &lt;regexp&gt;</B>
+
+<DD>
+the regular expression describing the word delimiter. The default value for
+the option is '[ \t]+', i.e., words are separated from each other by one or
+more space or tabulation characters.
+<DT><B>-f &lt;regexp&gt;</B>
+
+<DD>
+when processing the input file(s), ignore all lines that do not match the
+regular expression. The regular expression can contain ()-subexpressions, 
+and when
+<B>-t</B>
+
+&lt;template&gt; option has also been given, the values of those subexpressions 
+can be retrieved in &lt;template&gt; through $-variables. When
+<B>-f</B>
+
+and
+<B>-b</B>
+
+options are used together, the
+<B>-b</B>
+
+option is applied first.
+<DT><B>-g &lt;slice size&gt;</B>
+
+<DD>
+when the
+<B>-j</B>
+
+option has been given, SLCT inspects the table of candidates and compares
+each candidate with others, in order to find its subclusters. This task
+has quadratic complexity, and if the candidate table is larger, substantial
+amount of time could be required to complete the task. In order to reduce
+the time complexity, SLCT will divide candidate table into slices, with each
+slice having &lt;slice size&gt; candidates, and all candidates in the same slice
+having the same number of constant words in their descriptions. A descriptive
+bit vector is then calculated for every slice that lists all constant words
+the candidates of a given slice have. If SLCT is inspecting the cluster 
+candidate C for subclusters, and the descriptive vector of the slice S does
+not contain all the constant words of the candidate C, the candidates from
+the slice S will be skipped (i.e., they will not be compared with the 
+candidate C). If the
+<B>-j</B>
+
+option has been given, the default value for the 
+<B>-g</B>
+
+option is (the number of cluster candidates / 100 + 1).
+<DT><B>-i &lt;seed&gt;</B>
+
+<DD>
+the value that is used to initialize the 
+<B><A HREF="http://localhost/cgi-bin/man/man2html?3+rand">rand</A></B>(3)<B></B>
+
+based random number generator which is used to generate seed values for
+string hashing functions inside SLCT. The default value for the option is 1.
+<DT><B>-j</B>
+
+<DD>
+when processing the table of cluster candidates, also consider the relations
+between candidates, and allow the candidates (and clusters) to intersect.
+This option and the option
+<B>-z</B>
+
+are mutually exclusive, since
+<B>-j</B>
+
+requires the presence of all candidates in order to produce correct results,
+but with
+<B>-z </B>
+
+not all candidates are inserted into the candidate table.
+<DT><B>-o &lt;outliers file&gt;</B>
+
+<DD>
+the file where outliers are written. This option is meaningless without the
+<B>-r</B>
+
+option.
+<DT><B>-r</B>
+
+<DD>
+after the clusters have been found from the set of candidates, refine the
+cluster descriptions.
+<DT><B>-t &lt;template&gt;</B>
+
+<DD>
+template that is used to convert input lines, after they have matched the
+regular expression given with the
+<B>-f</B>
+
+option. Template is a string that will replace the original input line, after
+the $-variables in the template have been replaced with the values
+of ()-subexpressions from the regular expression. For example, if the regular 
+expression given with the
+<B>-f</B>
+
+option is 'sshd\[[0-9]+\]: (.+)', and the template is &quot;$1&quot;, then the line
+<BR>
+
+<I>sshd[1344]: connect from 192.168.1.1 </I>
+
+<BR>
+
+will be converted to 
+<BR>
+
+<I>connect from 192.168.1.1 </I>
+
+<BR>
+
+This option is meaningless without the
+<B>-f</B>
+
+option.
+<DT><B>-v &lt;wordvector size&gt;</B>
+
+<DD>
+the size of the word summary vector. The default value for the option is
+zero, i.e., no summary vector will be generated.
+<DT><B>-w &lt;wordtable size&gt;</B>
+
+<DD>
+the number of slots in the vocabulary hash table. The default value for the
+option is 100,000.
+<DT><B>-z &lt;clustervector size&gt;</B>
+
+<DD>
+the size of the cluster candidate summary vector. The default value for the 
+option is zero, i.e., no summary vector will be generated. This option and
+the option
+<B>-j</B>
+
+are mutually exclusive, since
+<B>-j</B>
+
+requires the presence of all candidates in order to produce correct results,
+but when the summar vector is employed, not all candidates are inserted
+into the candidate table.
+<DT><B>-s &lt;support&gt;</B>
+
+<DD>
+the support threshold value. The value can be either an integer, or a real 
+number with a trailing %-sign.
+</DL>
+<A NAME="lbAF">&nbsp;</A>
+<H2>AUTHOR</H2>
+
+Risto Vaarandi &lt;<A HREF="mailto:risto.vaarandi@eyp.ee">risto.vaarandi@eyp.ee</A>&gt;
+<A NAME="lbAG">&nbsp;</A>
+<H2>ACKNOWLEDGMENTS</H2>
+
+This software uses the fast Shift-Add-Xor string hashing algorithm
+by M. V. Ramakrishna and Justin Zobel.
+<P>
+
+<HR>
+<A NAME="index">&nbsp;</A><H2>Index</H2>
+<DL>
+<DT><A HREF="#lbAB">NAME</A><DD>
+<DT><A HREF="#lbAC">SYNOPSIS</A><DD>
+<DT><A HREF="#lbAD">DESCRIPTION</A><DD>
+<DT><A HREF="#lbAE">OPTIONS</A><DD>
+<DT><A HREF="#lbAF">AUTHOR</A><DD>
+<DT><A HREF="#lbAG">ACKNOWLEDGMENTS</A><DD>
+</DL>
+<HR>
+This document was created by
+<A HREF="http://localhost/cgi-bin/man/man2html">man2html</A>,
+using the manual pages.<BR>
+Time: 12:39:09 GMT, October 09, 2003
+</BODY>
+</HTML>

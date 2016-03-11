@@ -7,13 +7,20 @@ Options:
   --lfilter=<line_filter_regexp>
   --template=<line_conversion_template>
   --syslog=<syslog_facility>
-  --wsize=<wordsketch_size>
+  --wsize=<word_sketch_size>
+  --csize=<candidate_sketch_size>
   --wweight=<word_weight_threshold>
   --weightf=<word_weight_function>
   --wfilter=<word_filter_regexp>
   --wsearch=<word_search_regexp>
   --wreplace=<word_replace_string>
   --outliers=<outlier_file>
+  --readdump=<dump_file>
+  --writedump=<dump_file>
+  --wwprint
+  --color1[=<color>]
+  --color2[=<color>]
+  --color
   --aggrsup
   --debug
   --help, -?
@@ -75,13 +82,22 @@ This option can not be used without --lfilter option.
 Log messages about the progress of clustering to syslog, using the given
 facility. For example, --syslog=local2 logs to syslog with local2 facility.
 
---wsize=<wordsketch_size>
+--wsize=<word_sketch_size>
 Instead of finding frequent words by keeping each word with an occurrence
-counter in memory, use a sketch of <wordsketch_size> counters for filtering
+counter in memory, use a sketch of <word_sketch_size> counters for filtering
 out infrequent words from the word frequency estimation process. This
 option requires an additional pass over input files, but can save large 
 amount of memory, since most words in log files are usually infrequent. 
 For example, --wsize=250000 uses a sketch of 250,000 counters for filtering.
+
+--csize=<candidate_sketch_size>
+Instead of finding clusters by keeping each cluster candidate with 
+an occurrence counter in memory, use a sketch of <candidate_sketch_size>
+counters for filtering out cluster candidates which match less than <support>
+lines in input file(s). This option requires an additional pass over input 
+files, but can save memory if many cluster candidates are generated.
+For example, --csize=100000 uses a sketch of 100,000 counters for filtering.
+This option can not be used with --aggrsup option.
 
 --wweight=<word_weight_threshold>
 This option enables word weight based heuristic for joining clusters.
@@ -110,6 +126,11 @@ and 'Interface eth1 unstable' are detected where the weights of 'Interface'
 and 'unstable' are sufficient in both clusters, but the weights of 'eth0'
 and 'eth1' are smaller than the word weight threshold, the clusters are
 joined into a new cluster 'Interface (eth0|eth1) unstable'.
+In order to quickly evaluate different word weight threshold values and
+word weight functions on the same set of clusters, clusters and word
+dependency information can be dumped into a file during the first run of
+the algorithm, in order to reuse these data during subsequent runs
+(see --readdump and --writedump options).
 
 --weightf=<word_weight_function>
 This option takes an integer for its value which denotes a word weight 
@@ -146,6 +167,38 @@ while --wsearch and --wreplace are ignored without --wfilter.
 If this option is given, an additional pass over input files is made, in order 
 to find outliers. All outlier lines are written to the given file.
 
+--readdump=<dump_file>
+Read clusters and frequent word dependencies from a dump file <dump_file>
+that has been previously created with the --writedump option. This option 
+is useful for quick evaluation of different word weight thresholds and word
+weight functions (see --wweight and --weightf options), without the need of 
+repeating the entire clustering process during each evaluation.
+
+--writedump=<dump_file>
+Write clusters and frequent word dependencies to a dump file <dump_file>.
+This file can be used during later runs of the algorithm, in order to quickly
+evaluate different word weight thresholds and functions for joining clusters.
+
+--wwprint
+If --wweight option has been used for enabling word weight based heuristic 
+for joining clusters, include the weight of each word in line patterns when 
+detected line patterns are printed to standard output.
+
+--color1[=<color>]
+If --wweight option has been used for enabling word weight based heuristic 
+for joining clusters, words with insufficient weight are highlighted in
+detected line patterns with color <color>. If --color1 option is used without
+a value, it is equivalent to --color1=green.
+
+--color2=[<color>]
+If --wwprint option has been used for including word weights in line patterns,
+highlight the weights with color <color>. If --color2 option is used without
+a value, it is equivalent to --color2=yellow.
+
+--color
+Equivalent to "--color1 --color2" (in other words, enable text highlighting
+in detected line patterns with default colors).
+
 --aggrsup
 If this option is given, for each cluster candidate other candidates are
 identified which represent more specific line patterns. After detecting such
@@ -154,6 +207,7 @@ if the given candidate is 'Interface * down' with the support 20, and
 candidates 'Interface eth0 down' (support 10) and 'Interface eth1 down'
 (support 5) are detected as more specific, the support of 'Interface * down'
 will be set to 35 (20+10+5).
+This option can not be used with --csize option.
 
 --debug
 Increase logging verbosity by generating debug output.

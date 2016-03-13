@@ -17,10 +17,7 @@ Options:
   --outliers=<outlier_file>
   --readdump=<dump_file>
   --writedump=<dump_file>
-  --wwprint
-  --color1[=<color>]
-  --color2[=<color>]
-  --color
+  --color[=<color>]
   --aggrsup
   --debug
   --help, -?
@@ -179,25 +176,11 @@ Write clusters and frequent word dependencies to a dump file <dump_file>.
 This file can be used during later runs of the algorithm, in order to quickly
 evaluate different word weight thresholds and functions for joining clusters.
 
---wwprint
-If --wweight option has been used for enabling word weight based heuristic 
-for joining clusters, include the weight of each word in line patterns when 
-detected line patterns are printed to standard output.
-
---color1[=<color>]
+--color[=<color>]
 If --wweight option has been used for enabling word weight based heuristic 
 for joining clusters, words with insufficient weight are highlighted in
-detected line patterns with color <color>. If --color1 option is used without
-a value, it is equivalent to --color1=green.
-
---color2=[<color>]
-If --wwprint option has been used for including word weights in line patterns,
-highlight the weights with color <color>. If --color2 option is used without
-a value, it is equivalent to --color2=yellow.
-
---color
-Equivalent to "--color1 --color2" (in other words, enable text highlighting
-in detected line patterns with default colors).
+detected line patterns with color <color>. If --color option is used without
+a value, it is equivalent to --color=green.
 
 --aggrsup
 If this option is given, for each cluster candidate other candidates are

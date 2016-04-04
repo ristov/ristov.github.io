@@ -6,6 +6,7 @@ Options:
   --separator=<word_separator_regexp>
   --lfilter=<line_filter_regexp>
   --template=<line_conversion_template>
+  --lcfunc=<perl_code>
   --syslog=<syslog_facility>
   --wsize=<word_sketch_size>
   --csize=<candidate_sketch_size>
@@ -14,10 +15,12 @@ Options:
   --wfilter=<word_filter_regexp>
   --wsearch=<word_search_regexp>
   --wreplace=<word_replace_string>
+  --wcfunc=<perl_code>
   --outliers=<outlier_file>
   --readdump=<dump_file>
   --writedump=<dump_file>
   --color[=<color>]
+  --wildcard
   --aggrsup
   --debug
   --help, -?
@@ -55,6 +58,7 @@ When clustering log file lines from file(s) given with --input option(s),
 process only lines which match the regular expression. For example,
 --lfilter='sshd\[\d+\]:' finds clusters for log file lines that 
 contain the string sshd[<pid>]: (i.e., sshd syslog messages).
+This option can not be used with --lcfunc option.
 
 --template=<line_conversion_template>
 After the regular expression given with --lfilter option has matched a line,
@@ -74,6 +78,24 @@ Please note that <line_conversion_template> supports not only numeric
 match variables (such as $2 or ${12}), but also named match variables with
 $+{name} syntax (such as $+{ip} or $+{hostname}).
 This option can not be used without --lfilter option.
+
+--lcfunc=<perl_code>
+Similarly to --lfilter and --template options, this option is used for  
+filtering and converting log file lines. This option takes the definition
+of an anonymous perl function for its value. The function receives the log 
+file line as its only input parameter, and the value returned by the function 
+replaces the original log file line. In order to indicate that the line 
+should not be processed, 'undef' must be returned from the function.
+For example, with 
+--lcfunc='sub { if ($_[0] =~ s/192\.168\.\d{1,3}\.\d{1,3}/IP-address/g) { return $_[0]; } return undef; }'
+only lines that contain the string "192.168.<digits>.<digits>" are considered
+during clustering, and all strings "192.168.<digits>.<digits>" are replaced
+with the string "IP-address" in such lines. Longer filtering and conversion
+functions can be defined in a separate perl module. For example, with
+--lcfunc='require "/home/user/TestModule.pm"; sub { TestModule::myfilter(); }'
+all function parameters are passed to the function myfilter() from TestModule,
+and the return value from myfilter() is used during clustering.
+This option can not be used with --lfilter option.
 
 --syslog=<syslog_facility>
 Log messages about the progress of clustering to syslog, using the given
@@ -141,6 +163,23 @@ W1,...Wk (p <= k, and if Ui = Uj then i = j). The weight of the word Ui is
 then calculated as follows:
 if p>1 then (dep(U1, Ui) + ... + dep(Up, Ui) - dep(Ui, Ui)) / (p - 1)
 if p=1 then 1
+Value 3 denotes a modification of function 1 which calculates the weight 
+of the word Wi as follows:
+((dep(W1, Wi) + dep(Wi, W1)) + ... + (dep(Wk, Wi) + dep(Wi, Wk))) / (2 * k)
+Value 4 denotes a modification of function 2 which calculates the weight 
+of the word Ui as follows:
+if p>1 then ((dep(U1, Ui) + dep(Ui, U1)) + ... + (dep(Up, Ui) + dep(Ui, Up)) - 2*dep(Ui, Ui)) / (2 * (p - 1))
+if p=1 then 1
+
+--wfreq=<word_frequency_threshold>
+This option enables frequent word identification in detected line patterns.
+The option takes a positive real number not greater than 1 for its value. 
+If the total number of line patterns which are reported to the user is N, 
+the word W is regarded frequent if it appears in K detected line patterns and 
+(K / N) >= <word_frequency_threshold>. Setting <word_frequency_threshold>
+to a higher value allows for identifying words that are shared by many
+detected line patterns (such as hostnames or specific parts of timestamps).
+In order to highlight frequent words in line patterns, use --color option.
 
 --wfilter=<word_filter_regexp>
 --wsearch=<word_search_regexp>
@@ -160,6 +199,22 @@ the words 10.1.1.1 and 10.1.1.2:80 are converted into N.N.N.N and N.N.N.N:N
 Note that --wfilter option requires the presence of --wsearch and --wreplace,
 while --wsearch and --wreplace are ignored without --wfilter.
 
+--wcfunc=<perl_code>
+Similarly to --wfilter, --wsearch and --wreplace options, this option is 
+used for generating additional words during the clustering process.
+This option takes the definition of an anonymous perl function for its value.
+The function receives the word as its only input parameter, and returns
+a list of 0 or more words (all 'undef' values in the list are ignored). 
+During the clustering process, the original word is used if it is frequent,
+otherwise the first frequent word from the list replaces the original word.
+For example, with
+--wcfunc='sub { if ($_[0] =~ /^Chrome\/(\d+)/) { return ("Chrome/$1", "Chrome"); } }'
+the word list ("Chrome/49", "Chrome") is generated for the word
+"Chrome/49.0.2623.87". If words "Chrome/49.0.2623.87" and "Chrome/49" are
+infrequent but "Chrome" is frequent, the word "Chrome" replaces the word
+"Chrome/49.0.2623.87" during the clustering process.
+This option can not be used with --wfilter option.
+
 --outliers=<outlier_file>
 If this option is given, an additional pass over input files is made, in order 
 to find outliers. All outlier lines are written to the given file.
@@ -176,11 +231,18 @@ Write clusters and frequent word dependencies to a dump file <dump_file>.
 This file can be used during later runs of the algorithm, in order to quickly
 evaluate different word weight thresholds and functions for joining clusters.
 
---color[=<color>]
+--color[=[<color1>]:[<color2>]]
 If --wweight option has been used for enabling word weight based heuristic 
 for joining clusters, words with insufficient weight are highlighted in
-detected line patterns with color <color>. If --color option is used without
-a value, it is equivalent to --color=green.
+detected line patterns with color <color1>. If --wfreq option has been used
+for finding frequent words in line patterns, frequent words are highlighted
+in detected line patterns with color <color2>. If --color option is used 
+without a value, it is equivalent to --color=green:red.
+
+--wildcard
+If --wweight option has been used for enabling word weight based heuristic 
+for joining clusters, words with insufficient weight in detected line patterns
+are replaced with wildcards when patterns are reported to the user.
 
 --aggrsup
 If this option is given, for each cluster candidate other candidates are

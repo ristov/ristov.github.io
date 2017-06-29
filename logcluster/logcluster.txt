@@ -20,8 +20,11 @@ Options:
   --outliers=<outlier_file>
   --readdump=<dump_file>
   --writedump=<dump_file>
+  --readwords=<word_file>
+  --writewords=<word_file>
   --color[=<color>]
   --wildcard
+  --wfileint
   --aggrsup
   --debug
   --help, -?
@@ -34,6 +37,12 @@ corresponds to some line pattern, and print patterns to standard output.
 For example, --input=/var/log/remote/*.log finds clusters from all files
 with the .log extension in /var/log/remote.
 This option can be specified multiple times.
+Note that special file name - means finding line patterns from data from 
+standard input, and reporting detected line patterns when EOF is read from 
+standard input. However, processing data from standard input only makes
+sense for clustering modes which involve single pass over input data. 
+For example, consider the following stream mining scenario:
+logcluster.pl --input=- --support=100 --readwords=dictionary.txt
 
 --support=<support>
 Find clusters (line patterns) that match at least <support> lines in input
@@ -232,6 +241,18 @@ Write clusters and frequent word dependencies to a dump file <dump_file>.
 This file can be used during later runs of the algorithm, in order to quickly
 evaluate different word weight thresholds and functions for joining clusters.
 
+--readwords=<word_file>
+Don't detect frequent words from file(s) given with --input option(s), but
+read them in from a word file <word_file>. With --wfileint option, <word_file>
+has to be in binary format previously produced with --writewords option, 
+otherwise it is assumed that <word_file> is a text file where each frequent 
+word is provided in a separate line.
+
+--writewords=<word_file>
+After frequent words have been detected, write them to <word_file>.
+With --wfileint option, <word_file> will be in binary format, otherwise 
+a text format will be used where each word is provided in a separate line.
+
 --color[=[<color1>]:[<color2>]]
 If --wweight option has been used for enabling word weight based heuristic 
 for joining clusters, words with insufficient weight are highlighted in
@@ -244,6 +265,15 @@ without a value, it is equivalent to --color=green:red.
 If --wweight option has been used for enabling word weight based heuristic 
 for joining clusters, words with insufficient weight in detected line patterns
 are replaced with wildcards when patterns are reported to the user.
+
+--wfileint
+If --readwords or --writewords option has been used for reading or writing
+the word file, it is assumed that the word file is in binary format.
+
+--wordsonly
+Terminate after frequent words have been detected. If --writewords option 
+is also provided, this option allows for identifying and storing frequent 
+words only, so that no extra time is spent for finding clusters.
 
 --aggrsup
 If this option is given, for each cluster candidate other candidates are

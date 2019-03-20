@@ -103,7 +103,7 @@ only lines that contain the string "192.168.<digits>.<digits>" are considered
 during clustering, and all strings "192.168.<digits>.<digits>" are replaced
 with the string "IP-address" in such lines. Longer filtering and conversion
 functions can be defined in a separate perl module. For example, with
---lcfunc='require "/home/user/TestModule.pm"; sub { TestModule::myfilter(); }'
+--lcfunc='require "/home/user/TestModule.pm"; sub { TestModule::myfilter(@_); }'
 all function parameters are passed to the function myfilter() from TestModule,
 and the return value from myfilter() is used during clustering.
 This option can not be used with --lfilter option.
